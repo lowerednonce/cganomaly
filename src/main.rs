@@ -1,10 +1,10 @@
 // use std::collections::HashMap;
 use std::error::Error as stdError;
-use serde::Deserialize;
 use std::fs::{File, OpenOptions};
 use chrono::{Datelike, Timelike};
 use std::{thread, time};
 use std::io::{Write};
+use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct ResultJson {
@@ -12,7 +12,7 @@ struct ResultJson {
     tickers: Vec<ListingJson>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize, Debug)]
 struct ListingJson {
     // the so many Option<>-s are because CoinGecko seems to like passing nulls
     _base: String,
@@ -36,14 +36,14 @@ struct ListingJson {
 
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize, Debug)]
 struct MarketInfoJson {
     name: String,
     _identifier: String,
     _has_trading_incentive: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize, Debug)]
 struct ConvertedJson {
     _btc: f64,
     _eth: f64,
@@ -55,14 +55,15 @@ fn get_data(ticker: &String) -> Result<ResultJson, Box<dyn stdError>>{
 
     let plain_body: String = reqwest::blocking::get(tlink)?
         .text()?;
-    
-    println!("Successfully requested and parsed the JSON data.");
-    // println!("{}", plain_body);
 
+    // println!("{}", plain_body);
+    
     let body: ResultJson = match serde_json::from_str::<ResultJson>(&plain_body) {
         Ok(body) => body,
         Err(e) => panic!("Failed to deserialize JSON, error: {}", e ),
     };
+
+    println!("Successfully requested and parsed the JSON data.");
 
     Ok(body)
 
@@ -111,7 +112,7 @@ fn main() -> Result<(), Box<dyn stdError>>{
                 .create_new(true)
                 .open(&lfname)
                 {
-                    Ok(file) => write!(&file, "date,volme,spread\n"),
+                    Ok(file) => write!(&file, "date,volme,spread,last_digit,first_digit\n"),
                     Err(_) => Ok(()),
                 };
             let mut file = OpenOptions::new()
@@ -124,13 +125,16 @@ fn main() -> Result<(), Box<dyn stdError>>{
                     -1.0
                 }
             };
-            write!(file, "{:04}-{:02}-{:02}-{:02}-{:02},{},{}\n", 
+            write!(file, "{:04}-{:02}-{:02}-{:02}-{:02},{},{},{},{}\n", 
                 now.year_ce().0,
                 now.month(),
                 now.day(),
                 now.hour(),
                 now.minute(),
-                listing.volume, spread)?;
+                listing.volume,
+                spread,
+                listing.volume.to_string().chars().last().unwrap(),
+                listing.volume.to_string().chars().next().unwrap())?;
         }
         // wait
         thread::sleep(time::Duration::from_secs(60));
